@@ -148,5 +148,31 @@ namespace macaon {
             }
             return output;
         }
+
+        double transition(int previous, int label) {
+            std::tr1::unordered_map<std::string, int>::const_iterator found = features.find("B");
+            if(found != features.end()) {
+                return weights[found->second + label + labels.size() * previous];
+            }
+            return 0;
+        }
+
+        std::vector<double> emissions(const std::vector<std::vector<std::string> > &input, const std::vector<int> &context) {
+            std::vector<double> output;
+            for(size_t i = 0; i < labels.size(); i++) output.push_back(0);
+            for(std::vector<CRFPPTemplate>::const_iterator i = templates.begin(); i != templates.end(); i++) {
+                std::string feature = i->applyToClique(input, context, window_offset);
+                //std::cerr << "feature: " << feature << std::endl;
+                std::tr1::unordered_map<std::string, int>::const_iterator found = features.find(feature);
+                if(found != features.end()) {
+                    if(found->second >= 0 && found->second < (int) weights.size()) {
+                        if(i->type == CRFPPTemplate::UNIGRAM) 
+                            for(size_t label = 0; label < labels.size(); label++) 
+                                output[label] += weights[found->second + label];
+                    }
+                }
+            }
+            return output;
+        }
     };
 }

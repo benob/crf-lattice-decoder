@@ -36,6 +36,6 @@ int main(int argc, char** argv) {
     Decoder decoder;
     decoder.model.trivialModel();
     decoder.loadAutomaton(input, features);
-    decoder.decode(features, input, output);
+    decoder.decode(features, input, output, false);
     output.Write("");
 }

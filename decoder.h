@@ -24,9 +24,13 @@ namespace macaon {
 
         CRFModel model;
 
+        Decoder() {}
+        Decoder(const std::string &filename) { model.readCRFPPTextModel(filename); }
+
         void loadAutomaton(fst::StdVectorFst &automaton, std::vector<std::vector<std::string> > &features) {
             fst::SymbolTable states("states");
             fst::SymbolTable symbols("features");
+            symbols.AddSymbol("<eps>", 0);
             while(true) {
                 std::string line;
                 std::getline(std::cin, line);
@@ -126,7 +130,7 @@ namespace macaon {
             }
         };
 
-        void decode(const std::vector<std::vector<std::string> > &features, const fst::StdVectorFst &input, fst::StdVectorFst &output) {
+        void decode(const std::vector<std::vector<std::string> > &features, const fst::StdVectorFst &input, fst::StdVectorFst &output, bool rescore=false) {
 
             std::tr1::unordered_map<Context, State, Context::LabelsHash, Context::LabelsEqual> outputStates;
             std::list<Context> queue; // queue all unprocessed contexts
@@ -165,14 +169,49 @@ namespace macaon {
                     for(std::list<fst::StdArc>::const_iterator i = next.seq.begin(); i != next.seq.end(); i++) {
                         context_features.push_back(i->ilabel - 1);
                     }
-                    double score = model.score(features, context_features);
-                    //next.print();
-                    //std::cerr << score << std::endl;
-                    output.AddArc(arcStartState, fst::StdArc(next.ilabel(), next.olabel(), score, arcEndState));
+                    if(rescore) {
+                        double score = model.score(features, context_features);
+                        output.AddArc(arcStartState, fst::StdArc(next.ilabel(), next.olabel(), -score, arcEndState));
+                    } else {
+                        std::vector<double> scores = model.emissions(features, context_features);
+                        for(size_t label = 0; label < scores.size(); label++) {
+                            //if(scores[label] != 0)
+                                output.AddArc(arcStartState, fst::StdArc(next.ilabel(), label + 1, -scores[label], arcEndState));
+                        }
+                    }
                 }
             }
-            output.SetInputSymbols(input.InputSymbols());
-            output.SetOutputSymbols(input.OutputSymbols());
+            if(!rescore) {
+                fst::StdVectorFst transitions;
+                for(size_t label = 0; label < model.labels.size() + 1; label++) {
+                    transitions.AddState();
+                    if(label > 0) {
+                        transitions.SetFinal(label, 0);
+                    }
+                }
+                fst::SymbolTable labels("labels");
+                labels.AddSymbol("<eps>", 0);
+                for(std::tr1::unordered_map<std::string, int>::const_iterator label = model.labels.begin(); label != model.labels.end(); label++) {
+                    labels.AddSymbol(label->first, label->second + 1);
+                }
+                transitions.SetStart(0);
+                for(size_t label = 0; label < model.labels.size(); label++) {
+                    transitions.AddArc(0, fst::StdArc(label + 1, label + 1, 0, label + 1));
+                    for(size_t previous = 0; previous < model.labels.size(); previous++) {
+                        double score = model.transition(previous, label);
+                        //if(scoure != 0) 
+                            transitions.AddArc(previous + 1, fst::StdArc(label + 1, label + 1, -score, label + 1));
+                    }
+                }
+                output.SetInputSymbols(input.InputSymbols());
+                //output.SetOutputSymbols(&labels);
+                transitions.SetOutputSymbols(&labels);
+                fst::StdComposeFst result(output, transitions);
+                output = result;
+            } else {
+                output.SetInputSymbols(input.InputSymbols());
+                output.SetOutputSymbols(input.OutputSymbols());
+            }
         }
 
     };

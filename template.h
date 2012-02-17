@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <string.h>
 #include <stdlib.h>
 
@@ -30,25 +31,25 @@ namespace macaon {
         friend std::ostream &operator<<(std::ostream &, const CRFPPTemplate & );
 
         std::string apply(const std::vector<std::vector<std::string> > &clique, int offset) const {
-            std::string output;
+            std::ostringstream output;
             for(std::vector<TemplateItem>::const_iterator i = items.begin(); i != items.end(); i++) {
-                output += i->prefix;
+                output << i->prefix;
                 int column = i->column;
-                int line = i->line;
-                if(line + offset >= 0 && line + offset < (int) clique.size()) {
+                int line = i->line + offset;
+                if(line >= 0 && line < (int) clique.size()) {
                     if(column >= 0 && column < (int) clique[line].size()) {
-                        output += clique[line][column];
+                        output << clique[line][column];
                     } else {
                         std::cerr << "ERROR: invalid column " << column << " in template \"" << text << "\"\n";
                         return "";
                     }
                 } else {
-                    output += "_B";
-                    output += line;
+                    output << "_B";
+                    output << line;
                 }
             }
-            output += suffix;
-            return output;
+            output << suffix;
+            return output.str();
         }
 
         std::string applyToClique(const std::vector<std::vector<std::string> > &features, const std::vector<int> &clique, int offset) const {
