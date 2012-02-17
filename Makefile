@@ -1,3 +1,4 @@
 CPPFLAGS:=-g -Wall -lfst
-all: test
-test: test.cc 
+all: test apply_template crfpp_decode test_nbest
+%: %.cc
+	$(CXX) $(CPPFLAGS) -o $@ $<
