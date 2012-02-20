@@ -74,14 +74,27 @@ namespace macaon {
             State outputState;
             std::list<fst::StdArc> seq;
             size_t length;
+            size_t shift; // number of missing arcs at start state
             Context() {}
-            Context(State _inputState, State _outputState, size_t _length) : inputState(_inputState), outputState(_outputState), length(_length) {}
+            Context(State _inputState, State _outputState, size_t _length) : inputState(_inputState), outputState(_outputState), length(_length), shift(_length) {} // seq is empty
             Context& operator=(const Context& other) {
                 inputState = other.inputState;
                 outputState = other.outputState;
                 length = other.length;
                 seq = other.seq;
+                shift = other.shift;
                 return *this;
+            }
+            void getContextFeatures(std::vector<int> &output) const {
+                for(size_t i = 0; i < shift; i++) {
+                    output.push_back(-1);
+                }
+                for(std::list<fst::StdArc>::const_iterator i = seq.begin(); i != seq.end(); i++) {
+                    output.push_back(i->ilabel - 1);
+                }
+                for(size_t i = 0; i < length - seq.size() - shift; i++) {
+                    output.push_back(-1);
+                }
             }
             void print() {
                 cerr << "state: in=" << inputState << " out=" << outputState << " labels:";
@@ -93,7 +106,12 @@ namespace macaon {
             void push(const fst::StdArc& arc) {
                 seq.push_back(arc);
                 inputState = arc.nextstate;
+                if(shift > 0) shift--;
                 if(seq.size() > length) seq.pop_front();
+            }
+            void consume() {
+                if(shift > 0) shift--;
+                else if(seq.size() > 0) seq.pop_front();
             }
             struct LabelsHash {
                 size_t operator()(const Context& a) const {
@@ -122,10 +140,17 @@ namespace macaon {
             fst::StdArc::Weight weight() const {
                 return seq.back().weight;
             }
-            int64 ilabel() const {
-                return seq.back().ilabel;
+            int64 ilabel(size_t window_offset) const {
+                if(shift > window_offset || seq.size() <= window_offset) return 0; // epsilon transition
+                std::list<fst::StdArc>::const_iterator i = seq.begin();
+                for(size_t j = 0; j < window_offset - shift; j++) {
+                    i++;
+                }
+                //return seq[window_offset + shift].ilabel;
+                return i->ilabel;
             }
-            int64 olabel() const {
+            int64 olabel(size_t window_offset) const {
+                // TODO: incorrect
                 return seq.back().ilabel;
             }
         };
@@ -142,6 +167,7 @@ namespace macaon {
 
             while(queue.size() > 0) {
                 Context current = queue.front();
+                current.print();
                 queue.pop_front();
                 State inputState = current.inputState;
                 State arcStartState = current.outputState;
@@ -159,25 +185,56 @@ namespace macaon {
                     } else {
                         arcEndState = found->second;
                     }
-                    if(input.Final(arc.nextstate) != arc.weight.Zero()) {
+                    /*if(input.Final(arc.nextstate) != fst::StdArc::weight::Zero()) {
                         output.SetFinal(arcEndState, input.Final(arc.nextstate));
-                    }
+                    }*/
                     std::vector<int> context_features;
-                    for(size_t i = 0; i < model.window_length - next.seq.size(); i++) {
-                        context_features.push_back(-1);
-                    }
-                    for(std::list<fst::StdArc>::const_iterator i = next.seq.begin(); i != next.seq.end(); i++) {
-                        context_features.push_back(i->ilabel - 1);
-                    }
+                    next.getContextFeatures(context_features);
                     if(rescore) {
                         double score = model.score(features, context_features);
-                        output.AddArc(arcStartState, fst::StdArc(next.ilabel(), next.olabel(), -score, arcEndState));
+                        output.AddArc(arcStartState, fst::StdArc(next.ilabel(model.window_offset), next.olabel(model.window_offset), -score, arcEndState));
                     } else {
-                        std::vector<double> scores = model.emissions(features, context_features);
-                        for(size_t label = 0; label < scores.size(); label++) {
-                            //if(scores[label] != 0)
-                                output.AddArc(arcStartState, fst::StdArc(next.ilabel(), label + 1, -scores[label], arcEndState));
+                        int64 ilabel = next.ilabel(model.window_offset);
+                        std::cerr << "arc.ilabel=" << arc.ilabel << " next.ilabel=" << ilabel << " window_offset=" << model.window_offset << " next.shift=" << next.shift << std::endl;
+                        if(ilabel == 0) {
+                            output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
+                        } else {
+                            std::vector<double> scores = model.emissions(features, context_features);
+                            for(size_t label = 0; label < scores.size(); label++) {
+                                //if(scores[label] != 0 && label != 0)
+                                    output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
+                            }
                         }
+                    }
+                }
+                if(input.Final(inputState) != fst::StdArc::Weight::Zero()) {
+                    if(current.seq.size() > 0) {
+                        current.consume();
+                        std::tr1::unordered_map<Context, State>::iterator found = outputStates.find(current);
+                        int arcEndState = output.NumStates();
+                        if(found == outputStates.end()) {
+                            outputStates[current] = arcEndState;
+                            output.AddState();
+                            current.outputState = arcEndState;
+                            queue.push_back(current);
+                        } else {
+                            arcEndState = found->second;
+                        }
+                        std::vector<int> context_features;
+                        current.getContextFeatures(context_features);
+                        int64 ilabel = current.ilabel(model.window_offset);
+                        std::cerr << " current.ilabel=" << ilabel << " window_offset=" << model.window_offset << " current.shift=" << current.shift << std::endl;
+                        if(ilabel == 0) {
+                            output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
+                        } else {
+                            std::vector<double> scores = model.emissions(features, context_features);
+                            for(size_t label = 0; label < scores.size(); label++) {
+                                //if(scores[label] != 0 && label != 0)
+                                output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
+                            }
+                        }
+                    } else {
+                        output.SetFinal(arcStartState, input.Final(inputState));
                     }
                 }
             }
@@ -199,14 +256,14 @@ namespace macaon {
                     transitions.AddArc(0, fst::StdArc(label + 1, label + 1, 0, label + 1));
                     for(size_t previous = 0; previous < model.labels.size(); previous++) {
                         double score = model.transition(previous, label);
-                        //if(scoure != 0) 
-                            transitions.AddArc(previous + 1, fst::StdArc(label + 1, label + 1, -score, label + 1));
+                        //if(score != 0 && previous != 0) 
+                        transitions.AddArc(previous + 1, fst::StdArc(label + 1, label + 1, -score, label + 1));
                     }
                 }
                 output.SetInputSymbols(input.InputSymbols());
                 //output.SetOutputSymbols(&labels);
                 transitions.SetOutputSymbols(&labels);
-                fst::StdComposeFst result(output, transitions);
+                fst::StdComposeFst result(output, transitions); // TODO
                 output = result;
             } else {
                 output.SetInputSymbols(input.InputSymbols());
