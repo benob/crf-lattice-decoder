@@ -31,3 +31,9 @@ Outputs:
 
 The program generates an openfst transducer with as input the content of the
 columns (as a single string) and as output the generated tags.
+
+Notes on converting from CRFSuite:
+A CRF++ text model can be generated from a CRFSuite model dump under the following requirements:
+- The features must be extracted using a CRF++ template and the apply_template program.
+- The CRF++ template must contain the "=" sign between feature identifiers and the associated locators. i.e. U01:%x[0,0] should be written U01=%x[0,0].
+- The template must contain one and only one "B" feature not dependent on x
