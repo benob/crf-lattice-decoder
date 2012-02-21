@@ -19,7 +19,7 @@ Input:
 
 Here there are two feature columns but there can be any number of columns. 5 is a final state.
 
-At this time, no way can be specified on the graph.
+At this time, no weight can be specified on the graph.
 
 Running:
 -------
