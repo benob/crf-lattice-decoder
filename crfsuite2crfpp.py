@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+# This program converts a crfsuite model dump to a crfpp text model that can be used by crfpp_decode (warning: it won't work with crfpp itself)
 import sys, re
 
 if len(sys.argv) != 2:

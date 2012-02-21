@@ -167,7 +167,7 @@ namespace macaon {
 
             while(queue.size() > 0) {
                 Context current = queue.front();
-                current.print();
+                //current.print();
                 queue.pop_front();
                 State inputState = current.inputState;
                 State arcStartState = current.outputState;
@@ -195,7 +195,7 @@ namespace macaon {
                         output.AddArc(arcStartState, fst::StdArc(next.ilabel(model.window_offset), next.olabel(model.window_offset), -score, arcEndState));
                     } else {
                         int64 ilabel = next.ilabel(model.window_offset);
-                        std::cerr << "arc.ilabel=" << arc.ilabel << " next.ilabel=" << ilabel << " window_offset=" << model.window_offset << " next.shift=" << next.shift << std::endl;
+                        //std::cerr << "arc.ilabel=" << arc.ilabel << " next.ilabel=" << ilabel << " window_offset=" << model.window_offset << " next.shift=" << next.shift << std::endl;
                         if(ilabel == 0) {
                             output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                         } else {
@@ -223,7 +223,7 @@ namespace macaon {
                         std::vector<int> context_features;
                         current.getContextFeatures(context_features);
                         int64 ilabel = current.ilabel(model.window_offset);
-                        std::cerr << " current.ilabel=" << ilabel << " window_offset=" << model.window_offset << " current.shift=" << current.shift << std::endl;
+                        //std::cerr << " current.ilabel=" << ilabel << " window_offset=" << model.window_offset << " current.shift=" << current.shift << std::endl;
                         if(ilabel == 0) {
                             output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                         } else {

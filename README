@@ -1,0 +1,33 @@
+Lattice decoder for CRF++/CRFSuite/miralium models.
+--------------------------------------------------
+Benoit Favre <benoit.favre@lif.univ-mrs.fr> (c) 2012
+
+Deps: openfst.
+
+Input:
+-----
+
+1) a CRF++ text model (train with -t or convert from CRFSuite using crfsuite2crfpp.py)
+2) An automaton in the CRF++ format (with feature columns), prefixed by two columns indicating start and end states for the arcs, and final states on separate lines. Only one sentence/graph is supported at a time. Example:
+
+0 1 This DT
+1 2 is VB
+2 3 a DT
+3 4 test NN
+4 5 . .
+5
+
+Here there are two feature columns but there can be any number of columns. 5 is a final state.
+
+At this time, no way can be specified on the graph.
+
+Running:
+-------
+
+cat graph.txt | ./crfpp_decode model.txt | fstshortestpath | fsttopsort | fstprint
+
+Outputs:
+-------
+
+The program generates an openfst transducer with as input the content of the
+columns (as a single string) and as output the generated tags.
