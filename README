@@ -37,3 +37,15 @@ A CRF++ text model can be generated from a CRFSuite model dump under the followi
 - The features must be extracted using a CRF++ template and the apply_template program.
 - The CRF++ template must contain the "=" sign between feature identifiers and the associated locators. i.e. U01:%x[0,0] should be written U01=%x[0,0].
 - The template must contain one and only one "B" feature not dependent on x
+
+Applications:
+------------
+
+* Part-of-speech tagger:
+  The basic input is just one word per arc, then they ar extended with the add-morpho-features script. A model is provided for French.
+
+cat graph.txt | python tagger/add-morpho-features-lattice.py | ./crfpp_decode tagger/ftb.conll07.model.crfpp.txt | fstprint
+
+* Chunker:
+  To come
+
