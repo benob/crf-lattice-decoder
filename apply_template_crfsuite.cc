@@ -17,6 +17,14 @@ static void tokenize(const std::string& str, std::vector<std::string>& tokens, c
     }
 }
 
+static void replace(std::string& str, const std::string &search, const std::string &replacement) {
+    std::string::size_type pos = 0;
+    while ((pos = str.find(search, pos)) != std::string::npos) {
+        str.replace(pos, search.size(), replacement);
+        pos += replacement.size();
+    }
+}
+
 int main(int argc, char** argv) {
     if(argc != 2) {
         std::cerr << "usage: cat <input> | " << argv[0] << " <template>\n";
@@ -41,9 +49,14 @@ int main(int argc, char** argv) {
         tokenize(line, tokens, " \t");
         if(tokens.size() == 0) {
             for(int position = 0; position < (int) lines.size(); position++) {
-                std::cout << lines[position][lines[position].size() - 1];
+                std::string label = lines[position][lines[position].size() - 1];
+                replace(label, "\\", "\\\\");
+                replace(label, ":", "\\:");
+                std::cout << label;
                 for(std::vector<macaon::CRFPPTemplate>::const_iterator i = templates.begin(); i != templates.end(); i++) {
                     std::string feature = i->apply(lines, position);
+                    replace(feature, "\\", "\\\\");
+                    replace(feature, ":", "\\:");
                     std::cout << "\t" << feature;
                 }
                 /*if(position == 0) std::cout << "\t__BOS__";
