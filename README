@@ -42,9 +42,11 @@ Applications:
 ------------
 
 * Part-of-speech tagger:
-  The basic input is just one word per arc, then they ar extended with the add-morpho-features script. A model is provided for French.
+  pos-tagger provides feature extraction and decoding for a simple part-of-speech tagger.
 
-cat graph.txt | python tagger/add-morpho-features-lattice.py | ./crfpp_decode tagger/ftb.conll07.model.crfpp.txt | fstprint
+cat graph.txt | ./pos-tagger tagger/ftb.model.txt 
+
+  ftb.model.txt is a model trained on the French Treebank. ptb.model.txt is trained on the Penn Treebank.
 
 * Chunker:
   To come
