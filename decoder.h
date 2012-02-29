@@ -96,10 +96,17 @@ namespace macaon {
                     output.push_back(-1);
                 }
             }
-            void print() {
+            void print(CRFModel &model, const std::vector<std::vector<string> > & features) {
                 cerr << "state: in=" << inputState << " out=" << outputState << " labels:";
-                for(std::list<fst::StdArc>::const_iterator i = seq.begin(); i != seq.end(); i++) {
-                    cerr << " " << i->ilabel;
+                std::vector<int> labels; 
+                getContextFeatures(labels);
+                for(std::vector<int>::const_iterator i = labels.begin(); i != labels.end(); i++) {
+                    cerr << " " << *i;
+                }
+                cerr << " scores:";
+                std::vector<double> scores = model.emissions(features, labels);
+                for(std::vector<double>::const_iterator i = scores.begin(); i != scores.end(); i++) {
+                    cerr << " " << *i;
                 }
                 cerr << endl;
             }
@@ -110,8 +117,10 @@ namespace macaon {
                 if(seq.size() > length) seq.pop_front();
             }
             void consume() {
+                //cerr << "consume: shift=" << shift << " seq.size=" << seq.size() << endl;
                 if(shift > 0) shift--;
                 else if(seq.size() > 0) seq.pop_front();
+                //cerr << "> : shift=" << shift << " seq.size=" << seq.size() << endl;
             }
             struct LabelsHash {
                 size_t operator()(const Context& a) const {
@@ -119,6 +128,7 @@ namespace macaon {
                     std::list<fst::StdArc>::const_iterator i = a.seq.begin(); 
                     if(a.seq.size() == a.length) i++;
                     for(; i != a.seq.end(); i++) output ^= i->ilabel ^ i->olabel;
+                    output ^= a.shift;
                     return output;
                 }
             };
@@ -126,6 +136,7 @@ namespace macaon {
                 int operator()(const Context& a, const Context& b) const {
                     if(a.inputState != b.inputState) return false;
                     if(a.seq.size() != b.seq.size()) return false;
+                    if(a.shift != b.shift) return false;
                     std::list<fst::StdArc>::const_iterator i = a.seq.begin();
                     std::list<fst::StdArc>::const_iterator j = b.seq.begin();
                     if(a.seq.size() == a.length) i++;
@@ -141,7 +152,8 @@ namespace macaon {
                 return seq.back().weight;
             }
             int64 ilabel(size_t window_offset) const {
-                if(shift > window_offset || seq.size() <= window_offset) return 0; // epsilon transition
+                //cerr << "ilabel: shift=" << shift << " window_offset=" << window_offset << " seq.size=" << seq.size() << "\n";
+                if(shift > window_offset || seq.size() + shift <= window_offset) return 0; // epsilon transition
                 std::list<fst::StdArc>::const_iterator i = seq.begin();
                 for(size_t j = 0; j < window_offset - shift; j++) {
                     i++;
@@ -167,7 +179,7 @@ namespace macaon {
 
             while(queue.size() > 0) {
                 Context current = queue.front();
-                //current.print();
+                //current.print(model, features);
                 queue.pop_front();
                 State inputState = current.inputState;
                 State arcStartState = current.outputState;
@@ -210,6 +222,10 @@ namespace macaon {
                 if(input.Final(inputState) != fst::StdArc::Weight::Zero()) {
                     if(current.seq.size() > 0) {
                         current.consume();
+                        if(current.seq.size() == 0) {
+                            output.SetFinal(arcStartState, input.Final(inputState));
+                            continue;
+                        }
                         std::tr1::unordered_map<Context, State>::iterator found = outputStates.find(current);
                         int arcEndState = output.NumStates();
                         if(found == outputStates.end()) {

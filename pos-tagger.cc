@@ -1,74 +1,35 @@
-#pragma once
-#include <map>
-#include <vector>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
 #include <fst/fstlib.h>
+#include <fst/script/fstscript.h>
+#include "decoder.h"
+#include "features.h"
 
-namespace macaon {
-    std::map<std::string, int> words;
-    std::map<std::string, int> tags;
-    std::vector<std::string> reverse_tags;
-    std::vector<std::vector<int> > tags_for_word;
+using namespace macaon;
 
-
-
-    tags["np"] = 1;
-    reverse_tags.push_back("np");
-    std::ifstream input(argv[1]);
-    std::string line;
-    while(!input.eof()) {
-        std::getline(input, line);
-        std::istringstream tokenizer(line);
-        std::string word, tag;
-        int length;
-        //tokenizer >> length;
-        tokenizer >> word;
-        std::vector<int> word_tags;
-        while(tokenizer >> tag) {
-            //std::cerr << word << " " << tag << "\n";
-            std::map<std::string, int>::const_iterator found = tags.find(tag);
-            if(found != tags.end()) {
-                word_tags.push_back(found->second);
-            } else {
-                word_tags.push_back(tags.size() + 1);
-                tags[tag] = tags.size();
-                reverse_tags.push_back(tag);
-            }
-        }
-        words[word] = words.size();
-        //std::cerr << words[word] << "\n";
-        tags_for_word.push_back(word_tags);
+int main(int argc, char** argv) {
+    if(argc != 2) {
+        std::cerr << "usage: " << argv[0] << " <crfpp-text-model>\n";
+        return 1;
     }
-    std::string word;
-    fst::StdVectorFst automaton;
-    automaton.AddState();
-    fst::SymbolTable isyms("input");
-    fst::SymbolTable osyms("output");
-    isyms.AddSymbol("<eps>");
-    osyms.AddSymbol("<eps>");
-    while(!std::cin.eof()) {
-        if(!(std::cin >> word)) break;
-        std::map<std::string, int>::const_iterator found = words.find(word);
-        automaton.AddState();
-        if(found == words.end()) {
-            words[word] = words.size();
-            tags_for_word.push_back(std::vector<int>());
-            tags_for_word.back().push_back(tags["np"]);
+    fst::StdVectorFst input;
+    fst::StdVectorFst output;
+    std::vector<std::vector<std::string> > words;
+    std::vector<std::vector<std::string> > features;
+    Decoder decoder(argv[1]);
+    decoder.loadAutomaton(input, words);
+    for(std::vector<std::vector<std::string> >::const_iterator word = words.begin(); word != words.end(); word++) {
+        std::vector<std::string> word_features;
+        FeatureGenerator::get_pos_features((*word)[0], word_features);
+        /*for(std::vector<std::string>::const_iterator feature = word_features.begin(); feature != word_features.end(); feature++) {
+            std::cerr << *feature << " ";
         }
-        //std::cerr << words[word] << "\n";
-        for(std::vector<int>::const_iterator tag = tags_for_word[words[word] - 1].begin(); tag != tags_for_word[words[word] - 1].end(); tag++) {
-            //std::cerr << *tag << "\n";
-            int64 word_symbol = isyms.AddSymbol(word);
-            int64 tag_symbol = osyms.AddSymbol(reverse_tags[*tag - 1]);
-            automaton.AddArc(automaton.NumStates() - 2, fst::StdArc(word_symbol, tag_symbol, 0, automaton.NumStates() - 1));
-        }
+        std::cerr << std::endl;*/
+        features.push_back(word_features);
     }
-    automaton.SetFinal(automaton.NumStates() - 1, 0);
-    automaton.SetInputSymbols(&isyms);
-    automaton.SetOutputSymbols(&osyms);
-    automaton.SetStart(0);
-    automaton.Write("");
+    decoder.decode(features, input, output, false);
+    fst::StdVectorFst best;
+    fst::ShortestPath(output, &best);
+    fst::RmEpsilon(&best);
+    fst::TopSort(&best);
+    fst::script::PrintFst(best, std::cout, "stdout", output.InputSymbols(), output.OutputSymbols());
+    //output.Write("");
 }

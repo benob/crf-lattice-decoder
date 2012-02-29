@@ -7,6 +7,20 @@
 #include <stdlib.h>
 
 namespace macaon {
+    // from http://www.jb.man.ac.uk/~slowe/cpp/itoa.html
+    static std::string number_to_string(const int value) {
+        const int base = 10;
+        std::string buf;
+        buf.reserve(35);
+        int quotient = value;
+        do {
+            buf += "0123456789abcdef"[ std::abs( quotient % base ) ];
+            quotient /= base;
+        } while (quotient);
+        if (value < 0) buf += '-';
+        std::reverse( buf.begin(), buf.end() );
+        return buf;
+    }
 
     struct TemplateItem {
         int line;
@@ -45,7 +59,7 @@ namespace macaon {
                     }
                 } else {
                     output << "_B";
-                    output << line;
+                    output << number_to_string(line);
                 }
             }
             output << suffix;
@@ -67,7 +81,7 @@ namespace macaon {
                     }
                 } else {
                     output += "_B";
-                    output += line;
+                    output += number_to_string(line);
                 }
             }
             output += suffix;

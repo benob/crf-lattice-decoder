@@ -7,19 +7,20 @@
 #include "template.h"
 
 namespace macaon {
-    struct CRFModel {
+    class CRFModel {
         std::string name;
         std::vector<CRFPPTemplate> templates;
         int version;
         double cost_factor;
         int maxid;
         int xsize;
-        int window_offset;
-        int window_length;
-        std::tr1::unordered_map<std::string, int> labels;
         std::tr1::unordered_map<std::string, int> features;
         std::vector<double> weights;
         bool loaded;
+    public:
+        std::tr1::unordered_map<std::string, int> labels;
+        int window_offset;
+        int window_length;
         CRFModel() : loaded(false) {}
         CRFModel(const std::string &filename) : loaded(false) { readCRFPPTextModel(filename); }
 
@@ -61,7 +62,7 @@ namespace macaon {
             loaded = true;
         }
 
-        void readCRFPPTextModel(const std::string &filename) {
+        void readCRFPPTextModel(const std::string &filename, const std::string& binary_cdb = "") {
             name = filename;
             FILE* fp = fopen(filename.c_str(), "r");
             if(!fp) {
@@ -158,11 +159,12 @@ namespace macaon {
         }
 
         std::vector<double> emissions(const std::vector<std::vector<std::string> > &input, const std::vector<int> &context) {
-            std::vector<double> output;
-            for(size_t i = 0; i < labels.size(); i++) output.push_back(0);
+            std::vector<double> output(labels.size());
+            if((int) context.size() != window_length) return output;
+            if(context[window_offset] == -1) return output;
             for(std::vector<CRFPPTemplate>::const_iterator i = templates.begin(); i != templates.end(); i++) {
                 std::string feature = i->applyToClique(input, context, window_offset);
-                //std::cerr << "feature: " << feature << std::endl;
+                //std::cerr << " " << feature;
                 std::tr1::unordered_map<std::string, int>::const_iterator found = features.find(feature);
                 if(found != features.end()) {
                     if(found->second >= 0 && found->second < (int) weights.size()) {
@@ -171,7 +173,9 @@ namespace macaon {
                                 output[label] += weights[found->second + label];
                     }
                 }
+                //else std::cerr << "*";
             }
+            //std::cerr << "\n";
             return output;
         }
     };
