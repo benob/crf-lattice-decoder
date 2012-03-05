@@ -26,10 +26,10 @@ int main(int argc, char** argv) {
         features.push_back(word_features);
     }
     decoder.decode(features, input, output, false);
-    fst::StdVectorFst best;
+    /*fst::StdVectorFst best;
     fst::ShortestPath(output, &best);
     fst::RmEpsilon(&best);
     fst::TopSort(&best);
-    fst::script::PrintFst(best, std::cout, "stdout", output.InputSymbols(), output.OutputSymbols());
-    //output.Write("");
+    fst::script::PrintFst(best, std::cout, "stdout", output.InputSymbols(), output.OutputSymbols());*/
+    output.Write("");
 }
