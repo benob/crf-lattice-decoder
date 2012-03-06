@@ -27,7 +27,7 @@ namespace macaon {
         Decoder() {}
         Decoder(const std::string &filename) { model.readCRFPPTextModel(filename); }
 
-        void loadAutomaton(fst::StdVectorFst &automaton, std::vector<std::vector<std::string> > &features) {
+        void loadAutomaton(fst::StdVectorFst &automaton, std::vector<std::vector<std::string> > &features, bool hasTags = false) {
             fst::SymbolTable states("states");
             fst::SymbolTable symbols("features");
             symbols.AddSymbol("<eps>", 0);
@@ -56,16 +56,33 @@ namespace macaon {
                         states.AddSymbol(tokens[1], toState);
                     }
                     const std::string columns = line.substr(tokens[0].length() + tokens[1].length() + 2);  // WARNING: assume single spaces
-                    int64 symbol = symbols.Find(columns);
-                    if(symbol == -1) {
-                        features.push_back(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
-                        symbol = symbols.AddSymbol(columns, features.size());
+                    int64 isymbol = 0, osymbol = 0;
+                    if(hasTags) {
+                        isymbol = symbols.Find(columns);
+                        if(isymbol == -1) {
+                            features.push_back(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+                            isymbol = symbols.AddSymbol(columns, features.size());
+                        }
+                        std::tr1::unordered_map<std::string, int>::const_iterator tag = model.labels.find(tokens[tokens.size() - 1]);
+                        if(tag != model.labels.end()) {
+                            osymbol = tag->second + 1;
+                        } else {
+                            std::cerr << "error: unknown tag \"" << tokens[tokens.size() - 1] << "\" found in input\n";
+                            exit(1);
+                        }
+                    } else {
+                        isymbol = symbols.Find(columns);
+                        if(isymbol == -1) {
+                            features.push_back(std::vector<std::string>(tokens.begin() + 2, tokens.end()));
+                            isymbol = symbols.AddSymbol(columns, features.size());
+                        }
+                        osymbol = isymbol;
                     }
-                    automaton.AddArc(fromState, fst::StdArc(symbol, symbol, 0, toState));
+                    automaton.AddArc(fromState, fst::StdArc(isymbol, osymbol, 0, toState));
                 }
             }
             automaton.SetInputSymbols(&symbols);
-            automaton.SetOutputSymbols(&symbols);
+            //automaton.SetOutputSymbols(&symbols);
             automaton.SetStart(0);
         }
 
@@ -162,8 +179,12 @@ namespace macaon {
                 return i->ilabel;
             }
             int64 olabel(size_t window_offset) const {
-                // TODO: incorrect
-                return seq.back().ilabel;
+                if(shift > window_offset || seq.size() + shift <= window_offset) return 0; // epsilon transition
+                std::list<fst::StdArc>::const_iterator i = seq.begin();
+                for(size_t j = 0; j < window_offset - shift; j++) {
+                    i++;
+                }
+                return i->olabel;
             }
         };
 
@@ -202,19 +223,19 @@ namespace macaon {
                     }*/
                     std::vector<int> context_features;
                     next.getContextFeatures(context_features);
-                    if(rescore) {
-                        double score = model.score(features, context_features);
-                        output.AddArc(arcStartState, fst::StdArc(next.ilabel(model.window_offset), next.olabel(model.window_offset), -score, arcEndState));
+                    int64 ilabel = next.ilabel(model.window_offset);
+                    //std::cerr << "arc.ilabel=" << arc.ilabel << " next.ilabel=" << ilabel << " window_offset=" << model.window_offset << " next.shift=" << next.shift << std::endl;
+                    if(ilabel == 0) {
+                        output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                     } else {
-                        int64 ilabel = next.ilabel(model.window_offset);
-                        //std::cerr << "arc.ilabel=" << arc.ilabel << " next.ilabel=" << ilabel << " window_offset=" << model.window_offset << " next.shift=" << next.shift << std::endl;
-                        if(ilabel == 0) {
-                            output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
+                        if(rescore) {
+                            double score = model.score(features, context_features);
+                            output.AddArc(arcStartState, fst::StdArc(next.ilabel(model.window_offset), next.olabel(model.window_offset), -score, arcEndState));
                         } else {
                             std::vector<double> scores = model.emissions(features, context_features);
                             for(size_t label = 0; label < scores.size(); label++) {
                                 //if(scores[label] != 0 && label != 0)
-                                    output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
+                                output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
                             }
                         }
                     }
@@ -243,16 +264,26 @@ namespace macaon {
                         if(ilabel == 0) {
                             output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                         } else {
-                            std::vector<double> scores = model.emissions(features, context_features);
-                            for(size_t label = 0; label < scores.size(); label++) {
-                                //if(scores[label] != 0 && label != 0)
-                                output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
+                            if(rescore) {
+                                double score = model.score(features, context_features);
+                                output.AddArc(arcStartState, fst::StdArc(current.ilabel(model.window_offset), current.olabel(model.window_offset), -score, arcEndState));
+                            } else {
+                                std::vector<double> scores = model.emissions(features, context_features);
+                                for(size_t label = 0; label < scores.size(); label++) {
+                                    //if(scores[label] != 0 && label != 0)
+                                    output.AddArc(arcStartState, fst::StdArc(ilabel, label + 1, -scores[label], arcEndState));
+                                }
                             }
                         }
                     } else {
                         output.SetFinal(arcStartState, input.Final(inputState));
                     }
                 }
+            }
+            fst::SymbolTable labels("labels");
+            labels.AddSymbol("<eps>", 0);
+            for(std::tr1::unordered_map<std::string, int>::const_iterator label = model.labels.begin(); label != model.labels.end(); label++) {
+                labels.AddSymbol(label->first, label->second + 1);
             }
             if(!rescore) {
                 fst::StdVectorFst transitions;
@@ -261,11 +292,6 @@ namespace macaon {
                     if(label > 0) {
                         transitions.SetFinal(label, 0);
                     }
-                }
-                fst::SymbolTable labels("labels");
-                labels.AddSymbol("<eps>", 0);
-                for(std::tr1::unordered_map<std::string, int>::const_iterator label = model.labels.begin(); label != model.labels.end(); label++) {
-                    labels.AddSymbol(label->first, label->second + 1);
                 }
                 transitions.SetStart(0);
                 for(size_t label = 0; label < model.labels.size(); label++) {
@@ -283,7 +309,7 @@ namespace macaon {
                 output = result;
             } else {
                 output.SetInputSymbols(input.InputSymbols());
-                output.SetOutputSymbols(input.OutputSymbols());
+                output.SetOutputSymbols(&labels);
             }
         }
 
