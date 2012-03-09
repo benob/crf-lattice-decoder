@@ -2,23 +2,11 @@
 #include <tr1/unordered_map>
 #include <list>
 #include "model.h"
+#include "utils.h"
 
 namespace macaon {
 
     typedef int64 State;
-
-    // http://www.oopweb.com/CPP/Documents/CPPHOWTO/Volume/C++Programming-HOWTO-7.html
-    static void tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters = " ")
-    {
-        std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
-        std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
-        while (std::string::npos != pos || string::npos != lastPos)
-        {
-            tokens.push_back(str.substr(lastPos, pos - lastPos));
-            lastPos = str.find_first_not_of(delimiters, pos);
-            pos = str.find_first_of(delimiters, lastPos);
-        }
-    }
 
     struct Decoder {
 
@@ -36,7 +24,7 @@ namespace macaon {
                 std::getline(std::cin, line);
                 if(std::cin.eof()) break;
                 std::vector<std::string> tokens;
-                tokenize(line, tokens, " \t");
+                Tokenize(line, tokens, " \t");
                 if(tokens.size() == 1) {
                     int64 fromState = states.Find(tokens[0]);
                     if(fromState == -1) {
@@ -108,6 +96,17 @@ namespace macaon {
                 }
                 for(std::list<fst::StdArc>::const_iterator i = seq.begin(); i != seq.end(); i++) {
                     output.push_back(i->ilabel - 1);
+                }
+                for(size_t i = 0; i < length - seq.size() - shift; i++) {
+                    output.push_back(-1);
+                }
+            }
+            void getContextFeaturesOLabel(std::vector<int> &output) const {
+                for(size_t i = 0; i < shift; i++) {
+                    output.push_back(-1);
+                }
+                for(std::list<fst::StdArc>::const_iterator i = seq.begin(); i != seq.end(); i++) {
+                    output.push_back(i->olabel - 1);
                 }
                 for(size_t i = 0; i < length - seq.size() - shift; i++) {
                     output.push_back(-1);
@@ -229,7 +228,9 @@ namespace macaon {
                         output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                     } else {
                         if(rescore) {
-                            double score = model.score(features, context_features);
+                            std::vector<int> context_tags;
+                            next.getContextFeaturesOLabel(context_tags);
+                            double score = model.rescore(features, context_features, context_tags);
                             output.AddArc(arcStartState, fst::StdArc(next.ilabel(model.window_offset), next.olabel(model.window_offset), -score, arcEndState));
                         } else {
                             std::vector<double> scores = model.emissions(features, context_features);
@@ -265,7 +266,9 @@ namespace macaon {
                             output.AddArc(arcStartState, fst::StdArc(0, 0, 0, arcEndState));
                         } else {
                             if(rescore) {
-                                double score = model.score(features, context_features);
+                                std::vector<int> context_tags;
+                                current.getContextFeaturesOLabel(context_tags);
+                                double score = model.rescore(features, context_features, context_tags);
                                 output.AddArc(arcStartState, fst::StdArc(current.ilabel(model.window_offset), current.olabel(model.window_offset), -score, arcEndState));
                             } else {
                                 std::vector<double> scores = model.emissions(features, context_features);

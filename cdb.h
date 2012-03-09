@@ -5,6 +5,49 @@
 #include <time.h>
 
 namespace macaon {
+    /*typedef struct weight {
+        char id;
+        float value;
+    };
+
+    typedef std::vector<weight> weightVector;
+
+    void deserialize(weightVector &v, const char* data, size_t data_length) {
+        weight* weights = (weight*)data;
+        size_t num_elements = data_length / sizeof(weight);
+        weightVector.resize(num_elements);
+        for(size_t i = 0; i < num_elements; i++) {
+            v.push_back(weights[i]);
+        }
+    }
+    size_t serialize(const weightVector &v, char** data) {
+        weight* weights = (weight*) malloc(sizeof(weight) * v.size());
+        for(size_t i = 0; i < v.size(); i++) {
+            weights[i] = v[i];
+        }
+        *data = (char*) weight;
+        return v.size() * sizeof(weight);
+    }
+
+    typedef std::vector<char> labelVector;
+
+    void deserialize(labelVector &v, const char* data, size_t data_length) {
+        weight* weights = (weight*)data;
+        size_t num_elements = data_length / sizeof(weight);
+        weightVector.resize(num_elements);
+        for(size_t i = 0; i < num_elements; i++) {
+            v.push_back(weights[i]);
+        }
+    }
+    size_t serialize(const labelVector &v, char** data) {
+        weight* weights = (weight*) malloc(sizeof(weight) * v.size());
+        for(size_t i = 0; i < v.size(); i++) {
+            weights[i] = v[i];
+        }
+        *data = (char*) weight;
+    } */
+
+    //template <class T>
     class CDB {
         FILE* fp;
         uint32_t table_location[256];
@@ -71,5 +114,7 @@ namespace macaon {
             }
             return NULL;
         }
+        /*void write(std::tr1::unordered_map<std::string, T> table) {
+        }*/
     };
 }

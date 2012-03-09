@@ -3,8 +3,10 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 namespace macaon {
     // from http://www.jb.man.ac.uk/~slowe/cpp/itoa.html
@@ -14,7 +16,7 @@ namespace macaon {
         buf.reserve(35);
         int quotient = value;
         do {
-            buf += "0123456789abcdef"[ std::abs( quotient % base ) ];
+            buf += "0123456789abcdef"[ abs( quotient % base ) ];
             quotient /= base;
         } while (quotient);
         if (value < 0) buf += '-';

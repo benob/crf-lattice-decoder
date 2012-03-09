@@ -8,6 +8,8 @@
 #include "utils.h"
 
 namespace macaon {
+    const int kEpsilonTags = 0;
+    const int kUnknownWordTags = 1;
     class Lexicon {
         bool loaded;
 
@@ -16,6 +18,7 @@ namespace macaon {
 
         std::vector<std::vector<int64> > tagsForWord;
         std::tr1::unordered_map<int64, int> tagsForWordEntry;
+
 
     public:
         Lexicon() : loaded(false), wordSymbols("words"), tagSymbols("tags") {
@@ -38,6 +41,7 @@ namespace macaon {
         }
 
         bool Load(const std::string &filename) {
+            tagsForWord.push_back(std::vector<int64>()); // keep space for epsilon tags
             tagsForWord.push_back(std::vector<int64>()); // keep space for unk word tags
             loaded = false;
             std::tr1::unordered_map<std::string, int> known;
@@ -71,6 +75,10 @@ namespace macaon {
                     tagsForWordEntry[wordId] = found->second;
                 }
             }
+            tagsForWord[kEpsilonTags].push_back(0); // epsilon
+            for(fst::SymbolTableIterator siter(tagSymbols); !siter.Done(); siter.Next()) { // unknown word
+                if(siter.Value() != 0) tagsForWord[kUnknownWordTags].push_back(siter.Value());
+            }
             loaded = true;
             return loaded;
         }
@@ -79,9 +87,11 @@ namespace macaon {
             if(!IsLoaded()) {
                 std::cerr << "ERROR: Lexicon::GetTagsForWord(" << wordSymbols.Find(word) << ") called on empty lexicon" << std::endl;
             }
+            if(word == -1) return tagsForWord[kUnknownWordTags];
+            if(word == 0) return tagsForWord[kEpsilonTags];
             std::tr1::unordered_map<int64, int>::const_iterator found = tagsForWordEntry.find(word);
             if(found == tagsForWordEntry.end()) {
-                return tagsForWord[0]; // all tags by convention
+                return tagsForWord[kUnknownWordTags];
             } else {
                 return tagsForWord[found->second];
             }
@@ -96,15 +106,15 @@ namespace macaon {
                 std::cerr << "ERROR: Lexicon::AddTags() called on empty lexicon" << std::endl;
                 return;
             }
-            if(input.InputSymbols() != &wordSymbols) {
-                std::cerr << "ERROR: input symbols incompatible with Lexicon::AddTags() " << std::endl;
-                return;
-            }
+            bool needToMapSymbols = false;
+            if(input.InputSymbols() != &wordSymbols) needToMapSymbols = true;
             for(int64 state = 0; state < input.NumStates(); state++) {
                 std::vector<fst::StdArc> arcs;
                 for(fst::ArcIterator<fst::StdVectorFst> aiter(input, state); !aiter.Done(); aiter.Next()) {
                     const fst::StdArc &arc = aiter.Value();
-                    const std::vector<int64> &wordTags = GetTagsForWord(arc.ilabel);
+                    int64 word = arc.ilabel;
+                    if(needToMapSymbols) word = wordSymbols.Find(input.InputSymbols()->Find(word));
+                    const std::vector<int64> &wordTags = GetTagsForWord(word);
                     for(std::vector<int64>::const_iterator i = wordTags.begin(); i != wordTags.end(); i++) {
                         arcs.push_back(fst::StdArc(arc.ilabel, *i, arc.weight, arc.nextstate));
                     }

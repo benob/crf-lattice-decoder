@@ -128,14 +128,18 @@ namespace macaon {
             loaded = true;
         }
 
-        double score(const std::vector<std::vector<std::string> > &input, const std::vector<int> &context) {
+        bool is_loaded() const {
+            return loaded;
+        }
+
+        double rescore(const std::vector<std::vector<std::string> > &input, const std::vector<int> &context, const std::vector<int> &context_tags) {
             double output = 0;
             if((int) context.size() != window_length) return 0;
             //std::cerr << context[window_offset] << std::endl;
             if(context[window_offset] < 0) return 0;
-            const int label = labels[input[context[window_offset]][input[context[window_offset]].size() - 1]];
+            const int label = context_tags[window_offset]; //ilabels[input[context[window_offset]][input[context[window_offset]].size() - 1]];
             int previous = -1;
-            if(window_length > 1 && context[window_offset - 1] >=0) previous = labels[input[context[window_offset - 1]][input[context[window_offset - 1]].size() - 1]];
+            if(window_length > 1 && context[window_offset - 1] >=0) previous = context_tags[window_offset - 1]; //labels[input[context[window_offset - 1]][input[context[window_offset - 1]].size() - 1]];
             for(std::vector<CRFPPTemplate>::const_iterator i = templates.begin(); i != templates.end(); i++) {
                 std::string feature = i->applyToClique(input, context, window_offset);
                 //std::cerr << "feature: " << feature << std::endl;

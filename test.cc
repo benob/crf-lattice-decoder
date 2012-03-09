@@ -1,6 +1,7 @@
+#include <iostream>
 #include "decoder.h"
 #include "model.h"
-#include <iostream>
+#include "lexicon.h"
 
 using namespace macaon;
 using namespace std;
@@ -30,12 +31,19 @@ int main(int argc, char** argv) {
     double score = model.score(features, clique);
     cout << score << endl;*/
 
-    fst::StdVectorFst input;
+    /*fst::StdVectorFst input;
     fst::StdVectorFst output;
     std::vector<std::vector<std::string> > features;
     Decoder decoder;
     decoder.model.trivialModel();
     decoder.loadAutomaton(input, features);
     decoder.decode(features, input, output, false);
-    output.Write("");
+    output.Write("");*/
+
+    // test tag lexicon
+    Lexicon lexicon("../macaon-fr-word-tag.txt");
+    const std::vector<int64> tags = lexicon.GetTagsForWord(19222);
+    for(std::vector<int64>::const_iterator i = tags.begin(); i != tags.end(); i++) {
+        std::cout << *i << endl;
+    }
 }
